@@ -8,7 +8,6 @@
 #include <visualization_msgs/Marker.h>
 #include <obj_state_msgs/ObjectsStates.h>
 
-//注释
 typedef std::vector<Eigen::Vector3d> vecVec3;
 using namespace std;
 using namespace Eigen;
@@ -126,21 +125,31 @@ int main(int argc, char **argv)
     string world_frame = "map";
     int obs_num = 10;
     double obs_max_speed = 2.0;
+    
+    // loop_rate：ros::Rate 对象用于控制循环休眠，从而保证 30 Hz
     int freq = 30;
     ros::Rate loop_rate(freq);
     ros::Time last_t;
     vector<double> gbbox_o, gbbox_l, size_min, size_max;
     nh.getParam("WorldFrameName", world_frame);
+    
+    // GlobalBox_min / GlobalBox_size：障碍物活动区域的最小点和尺寸（一个 3 元数组，例如 [xmin, ymin, zmin] 和 [len_x, len_y, len_z]）
     nh.getParam("GlobalBox_min", gbbox_o);
     nh.getParam("GlobalBox_size", gbbox_l);
+    
+    // DynObsSize_min/max：每个障碍立方体的最小/最大边长
     nh.getParam("DynObsSize_min", size_min);
     nh.getParam("DynObsSize_max", size_max);
     nh.getParam("DynObsSpeed_max", obs_max_speed);
     nh.getParam("DynObsNum", obs_num);
     
-
+    // 发送 RViz 可直接显示的立方体和箭头（位置 + 速度向量）
     obj_vis_pub = nh.advertise<visualization_msgs::MarkerArray>("/dyn", 3);
+    
+    // 自定义消息，包含每个障碍物的 位置、速度、尺寸，供感知/规划算法订阅
+    // 队列长度 3 表示最多缓存 3 条尚未处理的消息
     obj_state_pub = nh.advertise<obj_state_msgs::ObjectsStates>("/obj_states", 3);
+    
     vecVec3 pos_list, vel_list, size_list;
     // initialize
     srand((unsigned)time(NULL));
@@ -152,10 +161,12 @@ int main(int argc, char **argv)
         pos(1) = gbbox_o[1] + rand() % (int(gbbox_l[1]) - 6) + 3.0;
         pos(2) = gbbox_o[2] + rand() % int(gbbox_l[2]);
 
+        // 为每个障碍生成随机尺寸 size，范围在 size_min 与 size_max 之间
         size(0) = (double)(rand() % 101) / 101 * (size_max[0] - size_min[0]) + size_min[0];
         size(1) = (double)(rand() % 101) / 101 * (size_max[1] - size_min[1]) + size_min[1];
         size(2) = (double)(rand() % 101) / 101 * (size_max[2] - size_min[2]) + size_min[2];
 
+        // 生成随机速度向量 vel，三个方向分量均为 [0, obs_max_speed] 之间的随机值
         vel << (double)(rand() % 101) / 101 * obs_max_speed, (double)(rand() % 101) / 101 * obs_max_speed, (double)(rand() % 101) / 101 * obs_max_speed;
         pos_list.emplace_back(pos);
         vel_list.emplace_back(vel);
@@ -185,8 +196,8 @@ int main(int argc, char **argv)
         }
         last_t = ros::Time::now();
 
-        obj_state_pb(pos_list, vel_list, size_list, last_t,world_frame);
-        dyn_pb(pos_list, vel_list, size_list, last_t,world_frame);
+        obj_state_pb(pos_list, vel_list, size_list, last_t, world_frame);
+        dyn_pb(pos_list, vel_list, size_list, last_t, world_frame);
         ros::spinOnce();
         loop_rate.sleep();
     }
